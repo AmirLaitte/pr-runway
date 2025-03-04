@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../integrations/supabase/client';
+import { fromTable, insertIntoTable, upsertIntoTable } from '../integrations/supabase/customClient';
 import { Profile } from '../types/database';
 import { useToast } from '../hooks/use-toast';
 
@@ -31,9 +31,8 @@ const ProfileSection = () => {
       
       if (!user) return;
 
-      // Use type assertion for the database operation
-      const { data, error } = await supabase
-        .from('profiles' as any)
+      // Using our custom wrapper
+      const { data, error } = await fromTable('profiles')
         .select('*')
         .eq('id', user.id)
         .single();
@@ -76,10 +75,8 @@ const ProfileSection = () => {
         avatar_url: '',
       };
 
-      // Use type assertion for the insert operation
-      const { error } = await supabase
-        .from('profiles' as any)
-        .insert([newProfile as any]);
+      // Use our custom wrapper
+      const { error } = await insertIntoTable('profiles', newProfile);
 
       if (error) throw error;
 
@@ -127,10 +124,8 @@ const ProfileSection = () => {
         avatar_url: avatar_url || '',
       };
       
-      // Use type assertion for the update operation
-      const { error } = await supabase
-        .from('profiles' as any)
-        .upsert(updates as any);
+      // Use our custom wrapper
+      const { error } = await upsertIntoTable('profiles', updates);
         
       if (error) throw error;
       

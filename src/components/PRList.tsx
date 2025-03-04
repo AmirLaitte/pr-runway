@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../context/AuthContext';
 import { PersonalRecord } from '../types/database';
 import { useToast } from '../hooks/use-toast';
+import { fromTable, insertIntoTable, updateTable, deleteFromTable } from '../integrations/supabase/customClient';
 
 const PRList = () => {
   const { user } = useAuth();
@@ -31,9 +30,8 @@ const PRList = () => {
       
       if (!user) return;
 
-      // Use type assertion for the select operation
-      const { data, error } = await supabase
-        .from('personal_records' as any)
+      // Using our custom wrapper
+      const { data, error } = await fromTable('personal_records')
         .select('*')
         .eq('user_id', user.id)
         .order('date_achieved', { ascending: false });
@@ -68,10 +66,8 @@ const PRList = () => {
         date_achieved: dateAchieved,
       };
       
-      // Use type assertion for the insert operation
-      const { error } = await supabase
-        .from('personal_records' as any)
-        .insert([newRecord as any]);
+      // Using our custom wrapper
+      const { error } = await insertIntoTable('personal_records', newRecord);
         
       if (error) throw error;
       
@@ -109,10 +105,8 @@ const PRList = () => {
         date_achieved: dateAchieved,
       };
       
-      // Use type assertion for the update operation
-      const { error } = await supabase
-        .from('personal_records' as any)
-        .update(updates as any)
+      // Using our custom wrapper
+      const { error } = await updateTable('personal_records', updates)
         .eq('id', id)
         .eq('user_id', user.id);
         
@@ -145,10 +139,8 @@ const PRList = () => {
     try {
       if (!user) return;
       
-      // Use type assertion for the delete operation
-      const { error } = await supabase
-        .from('personal_records' as any)
-        .delete()
+      // Using our custom wrapper
+      const { error } = await deleteFromTable('personal_records')
         .eq('id', id)
         .eq('user_id', user.id);
         
