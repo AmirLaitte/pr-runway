@@ -1,29 +1,22 @@
-
 import React, { useState, useEffect } from 'react';
-import ImageUpload from './ImageUpload';
-import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-
-interface ProfileData {
-  name: string;
-  location: string;
-  bio: string;
-  avatar_url: string | null;
-}
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../integrations/supabase/client';
+import { Profile } from '../types/database';
+import { useToast } from '../hooks/use-toast';
 
 const ProfileSection = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [profileData, setProfileData] = useState<ProfileData>({
-    name: '',
-    location: '',
-    bio: '',
-    avatar_url: null,
-  });
-
-  const [isEditing, setIsEditing] = useState(false);
-  const [bioCharCount, setBioCharCount] = useState(0);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [editing, setEditing] = useState(false);
+  
+  // Form state
+  const [name, setName] = useState('');
+  const [location, setLocation] = useState('');
+  const [bio, setBio] = useState('');
+  const [avatar, setAvatar] = useState<File | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -36,214 +29,172 @@ const ProfileSection = () => {
       setLoading(true);
       
       if (!user) return;
-      
+
+      // Use type assertion here since we know the structure
       const { data, error } = await supabase
         .from('profiles')
-        .select('name, location, bio, avatar_url')
+        .select('*')
         .eq('id', user.id)
         .single();
-      
-      if (error) {
-        console.error('Error fetching profile:', error);
-        throw error;
-      }
-      
+
+      if (error) throw error;
+
       if (data) {
-        setProfileData({
-          name: data.name || '',
-          location: data.location || '',
-          bio: data.bio || '',
-          avatar_url: data.avatar_url,
-        });
-        setBioCharCount(data.bio?.length || 0);
-        setIsEditing(!data.name);
+        // Type assertion for the profile data
+        const profileData = data as unknown as Profile;
+        setProfile(profileData);
+        setName(profileData.name || '');
+        setLocation(profileData.location || '');
+        setBio(profileData.bio || '');
+        setAvatarUrl(profileData.avatar_url || null);
+      } else {
+        // Create a new profile if one doesn't exist
+        await createProfile();
       }
     } catch (error) {
-      console.error('Error loading profile:', error);
+      console.error('Error fetching profile:', error);
+      toast({
+        title: 'Error fetching profile',
+        description: (error as Error).message,
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    
-    if (name === 'bio') {
-      if (value.length <= 150) {
-        setBioCharCount(value.length);
-        setProfileData({ ...profileData, [name]: value });
-      }
-    } else {
-      setProfileData({ ...profileData, [name]: value });
-    }
-  };
-
-  const handleImageChange = async (file: File | null) => {
-    if (!user || !file) return;
-    
+  const createProfile = async () => {
     try {
-      // Upload image to Supabase Storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}-${Math.random()}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file);
-      
-      if (uploadError) {
-        throw uploadError;
-      }
-      
-      // Get public URL
-      const { data } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-      
-      // Update profile with avatar URL
-      setProfileData({
-        ...profileData,
-        avatar_url: data.publicUrl,
-      });
-      
+      if (!user) return;
+
+      const newProfile: Profile = {
+        id: user.id,
+        name: '',
+        location: '',
+        bio: '',
+        avatar_url: '',
+      };
+
+      // Use type assertion for the insert operation
+      const { error } = await supabase
+        .from('profiles')
+        .insert([newProfile as any]);
+
+      if (error) throw error;
+
+      setProfile(newProfile);
     } catch (error) {
-      console.error('Error uploading avatar:', error);
-      setErrorMessage('Error uploading image. Please try again.');
+      console.error('Error creating profile:', error);
+      toast({
+        title: 'Error creating profile',
+        description: (error as Error).message,
+        variant: 'destructive',
+      });
     }
   };
 
-  const handleSave = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
     try {
-      setErrorMessage('');
+      setLoading(true);
       
       if (!user) return;
       
+      // Upload avatar if changed
+      let avatar_url = profile?.avatar_url;
+      
+      if (avatar) {
+        const fileExt = avatar.name.split('.').pop();
+        const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(fileName, avatar);
+          
+        if (uploadError) throw uploadError;
+        
+        avatar_url = `https://bfrixwwpujpzyzktnqng.supabase.co/storage/v1/object/public/avatars/${fileName}`;
+      }
+      
+      // Update profile
+      const updates: Profile = {
+        id: user.id,
+        name,
+        location,
+        bio,
+        avatar_url: avatar_url || '',
+      };
+      
+      // Use type assertion for the update operation
       const { error } = await supabase
         .from('profiles')
-        .upsert({
-          id: user.id,
-          name: profileData.name,
-          location: profileData.location,
-          bio: profileData.bio,
-          avatar_url: profileData.avatar_url,
-        });
-      
+        .upsert(updates as any);
+        
       if (error) throw error;
       
-      setIsEditing(false);
+      setProfile(updates);
+      setEditing(false);
+      
+      toast({
+        title: 'Profile updated',
+        description: 'Your profile has been updated successfully.',
+      });
     } catch (error) {
       console.error('Error updating profile:', error);
-      setErrorMessage('Error saving profile. Please try again.');
+      toast({
+        title: 'Error updating profile',
+        description: (error as Error).message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="w-full max-w-2xl mx-auto glass-card rounded-xl p-6 mb-8 animate-fade-up">
-        <p className="text-center">Loading profile...</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="w-full max-w-2xl mx-auto glass-card rounded-xl p-6 mb-8 animate-fade-up">
-      {errorMessage && (
-        <div className="mb-4 p-3 bg-destructive/20 border border-destructive text-destructive rounded-md">
-          {errorMessage}
-        </div>
+    <div className="profile-section">
+      {loading ? (
+        <p>Loading...</p>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div>
+            <label>Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+          <div>
+            <label>Location</label>
+            <input
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
+          </div>
+          <div>
+            <label>Bio</label>
+            <textarea
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+            />
+          </div>
+          <div>
+            <label>Avatar</label>
+            <input
+              type="file"
+              onChange={(e) => {
+                if (e.target.files) {
+                  setAvatar(e.target.files[0]);
+                }
+              }}
+            />
+          </div>
+          <button type="submit">Save</button>
+        </form>
       )}
-      
-      <div className="flex flex-col md:flex-row gap-6 items-start">
-        <div className="flex flex-col items-center gap-2">
-          <ImageUpload onImageChange={handleImageChange} />
-          {!isEditing && (
-            <button 
-              onClick={() => setIsEditing(true)}
-              className="text-xs text-primary hover:text-primary/80 font-medium transition-colors"
-            >
-              Edit Profile
-            </button>
-          )}
-        </div>
-        
-        <div className="flex-1 space-y-4">
-          {isEditing ? (
-            <div className="space-y-4 animate-fade-in">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-muted-foreground mb-1">
-                  Name
-                </label>
-                <input
-                  id="name"
-                  name="name"
-                  type="text"
-                  value={profileData.name}
-                  onChange={handleInputChange}
-                  placeholder="Your name"
-                  className="w-full px-3 py-2 rounded-md border border-border focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none input-transition"
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="location" className="block text-sm font-medium text-muted-foreground mb-1">
-                  Location
-                </label>
-                <input
-                  id="location"
-                  name="location"
-                  type="text"
-                  value={profileData.location}
-                  onChange={handleInputChange}
-                  placeholder="City, Country"
-                  className="w-full px-3 py-2 rounded-md border border-border focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none input-transition"
-                />
-              </div>
-              
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label htmlFor="bio" className="block text-sm font-medium text-muted-foreground">
-                    Bio
-                  </label>
-                  <span className={`text-xs ${bioCharCount > 130 ? 'text-orange-500' : 'text-muted-foreground'}`}>
-                    {bioCharCount}/150
-                  </span>
-                </div>
-                <textarea
-                  id="bio"
-                  name="bio"
-                  value={profileData.bio}
-                  onChange={handleInputChange}
-                  placeholder="Tell us about yourself as a runner (max 150 characters)"
-                  className="w-full px-3 py-2 rounded-md border border-border focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none resize-none h-20 input-transition"
-                  maxLength={150}
-                />
-              </div>
-              
-              <div className="flex justify-end">
-                <button
-                  onClick={handleSave}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors font-medium"
-                >
-                  Save Profile
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="animate-fade-in">
-              <h2 className="text-2xl font-semibold mb-1">{profileData.name || 'Runner Name'}</h2>
-              {profileData.location && (
-                <p className="text-muted-foreground mb-3">{profileData.location}</p>
-              )}
-              {profileData.bio && (
-                <p className="text-sm text-foreground leading-relaxed">{profileData.bio}</p>
-              )}
-              {(!profileData.name && !profileData.location && !profileData.bio) && (
-                <p className="text-muted-foreground italic">Complete your profile by clicking Edit Profile</p>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 };
