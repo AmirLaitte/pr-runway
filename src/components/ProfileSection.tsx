@@ -1,29 +1,69 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ImageUpload from './ImageUpload';
+import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ProfileData {
   name: string;
   location: string;
   bio: string;
-  profilePicture: File | null;
+  avatar_url: string | null;
 }
 
-interface ProfileSectionProps {
-  initialData?: Partial<ProfileData>;
-  onSave?: (data: ProfileData) => void;
-}
-
-const ProfileSection = ({ initialData = {}, onSave }: ProfileSectionProps) => {
+const ProfileSection = () => {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
   const [profileData, setProfileData] = useState<ProfileData>({
-    name: initialData.name || '',
-    location: initialData.location || '',
-    bio: initialData.bio || '',
-    profilePicture: null,
+    name: '',
+    location: '',
+    bio: '',
+    avatar_url: null,
   });
 
-  const [isEditing, setIsEditing] = useState(!initialData.name);
-  const [bioCharCount, setBioCharCount] = useState(profileData.bio.length);
+  const [isEditing, setIsEditing] = useState(false);
+  const [bioCharCount, setBioCharCount] = useState(0);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    if (user) {
+      fetchProfile();
+    }
+  }, [user]);
+
+  const fetchProfile = async () => {
+    try {
+      setLoading(true);
+      
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('name, location, bio, avatar_url')
+        .eq('id', user.id)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching profile:', error);
+        throw error;
+      }
+      
+      if (data) {
+        setProfileData({
+          name: data.name || '',
+          location: data.location || '',
+          bio: data.bio || '',
+          avatar_url: data.avatar_url,
+        });
+        setBioCharCount(data.bio?.length || 0);
+        setIsEditing(!data.name);
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -38,17 +78,81 @@ const ProfileSection = ({ initialData = {}, onSave }: ProfileSectionProps) => {
     }
   };
 
-  const handleImageChange = (file: File | null) => {
-    setProfileData({ ...profileData, profilePicture: file });
+  const handleImageChange = async (file: File | null) => {
+    if (!user || !file) return;
+    
+    try {
+      // Upload image to Supabase Storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+      
+      if (uploadError) {
+        throw uploadError;
+      }
+      
+      // Get public URL
+      const { data } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+      
+      // Update profile with avatar URL
+      setProfileData({
+        ...profileData,
+        avatar_url: data.publicUrl,
+      });
+      
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      setErrorMessage('Error uploading image. Please try again.');
+    }
   };
 
-  const handleSave = () => {
-    setIsEditing(false);
-    onSave?.(profileData);
+  const handleSave = async () => {
+    try {
+      setErrorMessage('');
+      
+      if (!user) return;
+      
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          name: profileData.name,
+          location: profileData.location,
+          bio: profileData.bio,
+          avatar_url: profileData.avatar_url,
+        });
+      
+      if (error) throw error;
+      
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      setErrorMessage('Error saving profile. Please try again.');
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="w-full max-w-2xl mx-auto glass-card rounded-xl p-6 mb-8 animate-fade-up">
+        <p className="text-center">Loading profile...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-2xl mx-auto glass-card rounded-xl p-6 mb-8 animate-fade-up">
+      {errorMessage && (
+        <div className="mb-4 p-3 bg-destructive/20 border border-destructive text-destructive rounded-md">
+          {errorMessage}
+        </div>
+      )}
+      
       <div className="flex flex-col md:flex-row gap-6 items-start">
         <div className="flex flex-col items-center gap-2">
           <ImageUpload onImageChange={handleImageChange} />

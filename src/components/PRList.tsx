@@ -1,6 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PRCard, { PersonalRecord } from './PRCard';
+import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
 
 // Common running distances in kilometers and miles
@@ -11,6 +13,7 @@ const commonDistances = [
 ];
 
 const PRList: React.FC = () => {
+  const { user } = useAuth();
   const [records, setRecords] = useState<PersonalRecord[]>([]);
   const [isAddingRecord, setIsAddingRecord] = useState(false);
   const [newDistance, setNewDistance] = useState('');
@@ -23,45 +26,166 @@ const PRList: React.FC = () => {
     location: '',
     date: '',
   });
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const handleAddRecord = () => {
-    const distance = isCustomDistance ? customDistance : newDistance;
-    
-    if (!distance) {
-      // We'd show a toast here about needing a distance, but we're using plain text
-      console.error("Please select a distance");
-      return;
+  useEffect(() => {
+    if (user) {
+      fetchRecords();
     }
-    
-    const id = uuidv4();
-    const record: PersonalRecord = {
-      id,
-      distance,
-      ...newRecord
-    };
-    
-    setRecords([...records, record]);
-    setIsAddingRecord(false);
-    setNewDistance('');
-    setCustomDistance('');
-    setIsCustomDistance(false);
-    setNewRecord({
-      hours: '',
-      minutes: '',
-      seconds: '',
-      location: '',
-      date: '',
-    });
+  }, [user]);
+
+  const fetchRecords = async () => {
+    try {
+      setLoading(true);
+      
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from('personal_records')
+        .select('*')
+        .eq('user_id', user.id);
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (data) {
+        // Transform the data to match our PersonalRecord interface
+        const formattedRecords: PersonalRecord[] = data.map((record: any) => {
+          // Split the time into hours, minutes, seconds
+          const [hours, minutes, seconds] = record.time.split(':');
+          
+          return {
+            id: record.id,
+            distance: record.distance,
+            hours: hours || '',
+            minutes: minutes || '',
+            seconds: seconds || '',
+            location: record.race_location || '',
+            date: record.date_achieved || '',
+          };
+        });
+        
+        setRecords(formattedRecords);
+      }
+    } catch (error) {
+      console.error('Error fetching records:', error);
+      setErrorMessage('Error loading records. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUpdateRecord = (id: string, updatedFields: Partial<PersonalRecord>) => {
-    setRecords(records.map(record => 
-      record.id === id ? { ...record, ...updatedFields } : record
-    ));
+  const handleAddRecord = async () => {
+    try {
+      setErrorMessage('');
+      const distance = isCustomDistance ? customDistance : newDistance;
+      
+      if (!distance) {
+        console.error("Please select a distance");
+        setErrorMessage("Please select a distance");
+        return;
+      }
+      
+      if (!user) return;
+      
+      // Format time as HH:MM:SS
+      const formattedTime = `${newRecord.hours.padStart(2, '0')}:${newRecord.minutes.padStart(2, '0')}:${newRecord.seconds.padStart(2, '0')}`;
+      
+      // Save record to Supabase
+      const { error } = await supabase
+        .from('personal_records')
+        .insert({
+          user_id: user.id,
+          distance: distance,
+          time: formattedTime,
+          race_location: newRecord.location,
+          date_achieved: newRecord.date || null,
+        });
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Refresh records
+      await fetchRecords();
+      
+      // Reset form
+      setIsAddingRecord(false);
+      setNewDistance('');
+      setCustomDistance('');
+      setIsCustomDistance(false);
+      setNewRecord({
+        hours: '',
+        minutes: '',
+        seconds: '',
+        location: '',
+        date: '',
+      });
+    } catch (error) {
+      console.error('Error adding record:', error);
+      setErrorMessage('Error adding record. Please try again.');
+    }
   };
 
-  const handleDeleteRecord = (id: string) => {
-    setRecords(records.filter(record => record.id !== id));
+  const handleUpdateRecord = async (id: string, updatedFields: Partial<PersonalRecord>) => {
+    try {
+      setErrorMessage('');
+      
+      if (!user) return;
+      
+      // Format time for database
+      const formattedTime = `${updatedFields.hours?.padStart(2, '0')}:${updatedFields.minutes?.padStart(2, '0')}:${updatedFields.seconds?.padStart(2, '0')}`;
+      
+      // Update record in Supabase
+      const { error } = await supabase
+        .from('personal_records')
+        .update({
+          time: formattedTime,
+          race_location: updatedFields.location,
+          date_achieved: updatedFields.date || null,
+        })
+        .eq('id', id)
+        .eq('user_id', user.id);
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Update local state
+      setRecords(records.map(record => 
+        record.id === id ? { ...record, ...updatedFields } : record
+      ));
+    } catch (error) {
+      console.error('Error updating record:', error);
+      setErrorMessage('Error updating record. Please try again.');
+    }
+  };
+
+  const handleDeleteRecord = async (id: string) => {
+    try {
+      setErrorMessage('');
+      
+      if (!user) return;
+      
+      // Delete record from Supabase
+      const { error } = await supabase
+        .from('personal_records')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id);
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Update local state
+      setRecords(records.filter(record => record.id !== id));
+    } catch (error) {
+      console.error('Error deleting record:', error);
+      setErrorMessage('Error deleting record. Please try again.');
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -93,6 +217,17 @@ const PRList: React.FC = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="w-full max-w-2xl mx-auto">
+        <div className="mb-6 flex justify-between items-center">
+          <h2 className="text-xl font-semibold">Personal Records</h2>
+        </div>
+        <p className="text-center py-12">Loading records...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full max-w-2xl mx-auto">
       <div className="mb-6 flex justify-between items-center">
@@ -106,6 +241,12 @@ const PRList: React.FC = () => {
           </button>
         )}
       </div>
+      
+      {errorMessage && (
+        <div className="mb-4 p-3 bg-destructive/20 border border-destructive text-destructive rounded-md">
+          {errorMessage}
+        </div>
+      )}
       
       {isAddingRecord && (
         <div className="glass-card rounded-lg p-5 mb-6 animate-fade-up">
