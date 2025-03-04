@@ -11,7 +11,8 @@ import { supabase } from './client';
  * @returns A PostgrestQueryBuilder for the specified table
  */
 export const fromTable = (table: string) => {
-  return supabase.from(table as any);
+  // Cast the supabase instance to any to bypass type checking
+  return (supabase as any).from(table);
 };
 
 /**
@@ -22,7 +23,7 @@ export const fromTable = (table: string) => {
  */
 export const insertIntoTable = (table: string, data: any | any[]) => {
   const dataArray = Array.isArray(data) ? data : [data];
-  return fromTable(table).insert(dataArray as any);
+  return fromTable(table).insert(dataArray);
 };
 
 /**
@@ -32,7 +33,7 @@ export const insertIntoTable = (table: string, data: any | any[]) => {
  * @returns A PostgrestFilterBuilder for the update operation
  */
 export const updateTable = (table: string, data: any) => {
-  return fromTable(table).update(data as any);
+  return fromTable(table).update(data);
 };
 
 /**
@@ -42,7 +43,7 @@ export const updateTable = (table: string, data: any) => {
  * @returns A PostgrestFilterBuilder for the upsert operation
  */
 export const upsertIntoTable = (table: string, data: any) => {
-  return fromTable(table).upsert(data as any);
+  return fromTable(table).upsert(data);
 };
 
 /**
