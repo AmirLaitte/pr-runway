@@ -1,12 +1,27 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import React from 'react';
+import Header from '../components/Header';
+import ProfileSection from '../components/ProfileSection';
+import PRList from '../components/PRList';
 
 const Index = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-background to-secondary/30">
+      <Header />
+      
+      <main className="container py-8 px-4">
+        <ProfileSection />
+        
+        <div className="my-8 border-t border-border/50"></div>
+        
+        <PRList />
+      </main>
+      
+      <footer className="py-6 border-t border-border/50 mt-12">
+        <div className="container text-center text-sm text-muted-foreground">
+          <p>Running PR Tracker &copy; {new Date().getFullYear()}</p>
+        </div>
+      </footer>
     </div>
   );
 };
