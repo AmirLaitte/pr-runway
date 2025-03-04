@@ -13,9 +13,12 @@ const Header = () => {
           Running PR Tracker
         </Link>
         <div className="flex items-center gap-4">
-          <button className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200">
+          <Link 
+            to="/about" 
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200"
+          >
             About
-          </button>
+          </Link>
           {user ? (
             <button 
               onClick={signOut}

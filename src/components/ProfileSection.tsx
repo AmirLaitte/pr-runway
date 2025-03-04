@@ -24,6 +24,7 @@ const ProfileSection = () => {
   const [bio, setBio] = useState('');
   const [avatar, setAvatar] = useState<File | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarPath, setAvatarPath] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
@@ -53,7 +54,15 @@ const ProfileSection = () => {
         setName(profileData.name || '');
         setLocation(profileData.location || '');
         setBio(profileData.bio || '');
-        setAvatarUrl(profileData.avatar_url || null);
+        
+        // Set avatar path
+        setAvatarPath(profileData.avatar_url || null);
+        
+        // Get and set the public URL for the avatar
+        if (profileData.avatar_url) {
+          const publicUrl = storage.getAvatarUrl(profileData.avatar_url);
+          setAvatarUrl(publicUrl);
+        }
       } else {
         // Create a new profile if one doesn't exist
         await createProfile();
@@ -123,13 +132,16 @@ const ProfileSection = () => {
       }
       
       // Upload avatar if changed
-      let avatar_url = profile?.avatar_url || '';
+      let avatar_url = avatarPath || '';
       
       if (avatar) {
         try {
           setUploadingAvatar(true);
-          const { url } = await storage.uploadAvatar(avatar, user.id);
-          avatar_url = url;
+          const result = await storage.uploadAvatar(avatar, user.id);
+          avatar_url = result.path;
+          // Update avatarUrl with the new public URL
+          setAvatarUrl(result.url);
+          setAvatarPath(result.path);
           setUploadingAvatar(false);
         } catch (error) {
           console.error('Avatar upload error:', error);

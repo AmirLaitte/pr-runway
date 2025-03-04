@@ -69,6 +69,12 @@ export const storage = {
       const fileExt = file.name.split('.').pop();
       const fileName = `${userId}-${Date.now()}.${fileExt}`;
       
+      // Verify bucket exists
+      const { data: buckets } = await supabase.storage.listBuckets();
+      if (!buckets || !buckets.find(b => b.name === 'avatars')) {
+        throw new Error('Avatars bucket not found');
+      }
+      
       // Upload to avatars bucket
       const { data, error } = await supabase.storage
         .from('avatars')
@@ -92,5 +98,16 @@ export const storage = {
       console.error('Avatar upload error:', error);
       throw error;
     }
+  },
+  
+  // Get public URL for an avatar
+  getAvatarUrl: (path: string) => {
+    if (!path) return null;
+    
+    const { data: { publicUrl } } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(path);
+    
+    return publicUrl;
   }
 };
