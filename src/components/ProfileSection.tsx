@@ -1,9 +1,15 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../integrations/supabase/client';
-import { fromTable, insertIntoTable, upsertIntoTable } from '../integrations/supabase/customClient';
+import { fromTable, insertIntoTable, upsertIntoTable, storage } from '../integrations/supabase/customClient';
 import { Profile } from '../types/database';
 import { useToast } from '../hooks/use-toast';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { Label } from './ui/label';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from './ui/card';
 
 const ProfileSection = () => {
   const { user } = useAuth();
@@ -18,6 +24,7 @@ const ProfileSection = () => {
   const [bio, setBio] = useState('');
   const [avatar, setAvatar] = useState<File | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -91,28 +98,48 @@ const ProfileSection = () => {
     }
   };
 
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setAvatar(e.target.files[0]);
+      // Create a preview URL
+      const url = URL.createObjectURL(e.target.files[0]);
+      setAvatarUrl(url);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
       setLoading(true);
       
-      if (!user) return;
+      if (!user) {
+        toast({
+          title: 'Authentication required',
+          description: 'You must be logged in to update your profile.',
+          variant: 'destructive',
+        });
+        return;
+      }
       
       // Upload avatar if changed
-      let avatar_url = profile?.avatar_url;
+      let avatar_url = profile?.avatar_url || '';
       
       if (avatar) {
-        const fileExt = avatar.name.split('.').pop();
-        const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('avatars')
-          .upload(fileName, avatar);
-          
-        if (uploadError) throw uploadError;
-        
-        avatar_url = `https://bfrixwwpujpzyzktnqng.supabase.co/storage/v1/object/public/avatars/${fileName}`;
+        try {
+          setUploadingAvatar(true);
+          const { url } = await storage.uploadAvatar(avatar, user.id);
+          avatar_url = url;
+          setUploadingAvatar(false);
+        } catch (error) {
+          console.error('Avatar upload error:', error);
+          toast({
+            title: 'Avatar upload failed',
+            description: (error as Error).message,
+            variant: 'destructive',
+          });
+          setUploadingAvatar(false);
+        }
       }
       
       // Update profile
@@ -121,7 +148,7 @@ const ProfileSection = () => {
         name,
         location,
         bio,
-        avatar_url: avatar_url || '',
+        avatar_url,
       };
       
       // Use our custom wrapper
@@ -149,49 +176,81 @@ const ProfileSection = () => {
   };
 
   return (
-    <div className="profile-section">
-      {loading ? (
-        <p>Loading...</p>
-      ) : (
-        <form onSubmit={handleSubmit}>
-          <div>
-            <label>Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle>Your Profile</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex justify-center p-6">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
           </div>
-          <div>
-            <label>Location</label>
-            <input
-              type="text"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-            />
-          </div>
-          <div>
-            <label>Bio</label>
-            <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-            />
-          </div>
-          <div>
-            <label>Avatar</label>
-            <input
-              type="file"
-              onChange={(e) => {
-                if (e.target.files) {
-                  setAvatar(e.target.files[0]);
-                }
-              }}
-            />
-          </div>
-          <button type="submit">Save</button>
-        </form>
-      )}
-    </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="flex flex-col items-center mb-6">
+              <Avatar className="h-24 w-24 mb-3">
+                {avatarUrl ? (
+                  <AvatarImage src={avatarUrl} alt="Profile" />
+                ) : (
+                  <AvatarFallback>{name ? name[0]?.toUpperCase() : 'U'}</AvatarFallback>
+                )}
+              </Avatar>
+              <div className="mt-2">
+                <Label htmlFor="avatar" className="block mb-2">Profile Picture</Label>
+                <Input
+                  id="avatar"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarChange}
+                  className="cursor-pointer"
+                  disabled={uploadingAvatar}
+                />
+                {uploadingAvatar && <p className="text-sm text-gray-500 mt-1">Uploading...</p>}
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Your name"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="location">Location</Label>
+              <Input
+                id="location"
+                type="text"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Your location"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="bio">Bio</Label>
+              <Textarea
+                id="bio"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="Tell us about yourself"
+                rows={4}
+              />
+            </div>
+            
+            <CardFooter className="px-0 pt-3 justify-end">
+              <Button type="submit" disabled={loading || uploadingAvatar}>
+                {loading ? 'Saving...' : 'Save Profile'}
+              </Button>
+            </CardFooter>
+          </form>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

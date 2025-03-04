@@ -55,5 +55,42 @@ export const deleteFromTable = (table: string) => {
   return fromTable(table).delete();
 };
 
-// Supabase storage helper
-export const { storage } = supabase;
+// Supabase storage helper functions
+export const storage = {
+  ...supabase.storage,
+  // Helper method to upload avatar with error handling
+  uploadAvatar: async (file: File, userId: string) => {
+    try {
+      // Check if file is valid
+      if (!file) {
+        throw new Error('No file provided');
+      }
+      
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${userId}-${Date.now()}.${fileExt}`;
+      
+      // Upload to avatars bucket
+      const { data, error } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+      
+      if (error) {
+        console.error('Storage upload error:', error);
+        throw error;
+      }
+      
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+      
+      return { path: fileName, url: publicUrl };
+    } catch (error) {
+      console.error('Avatar upload error:', error);
+      throw error;
+    }
+  }
+};
