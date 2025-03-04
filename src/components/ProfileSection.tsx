@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../integrations/supabase/client';
@@ -30,9 +31,9 @@ const ProfileSection = () => {
       
       if (!user) return;
 
-      // Use type assertion here since we know the structure
+      // Use type assertion for the database operation
       const { data, error } = await supabase
-        .from('profiles')
+        .from('profiles' as any)
         .select('*')
         .eq('id', user.id)
         .single();
@@ -77,7 +78,7 @@ const ProfileSection = () => {
 
       // Use type assertion for the insert operation
       const { error } = await supabase
-        .from('profiles')
+        .from('profiles' as any)
         .insert([newProfile as any]);
 
       if (error) throw error;
@@ -128,7 +129,7 @@ const ProfileSection = () => {
       
       // Use type assertion for the update operation
       const { error } = await supabase
-        .from('profiles')
+        .from('profiles' as any)
         .upsert(updates as any);
         
       if (error) throw error;

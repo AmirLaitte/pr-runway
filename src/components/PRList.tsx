@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../integrations/supabase/client';
 import { useAuth } from '../context/AuthContext';
@@ -32,7 +33,7 @@ const PRList = () => {
 
       // Use type assertion for the select operation
       const { data, error } = await supabase
-        .from('personal_records')
+        .from('personal_records' as any)
         .select('*')
         .eq('user_id', user.id)
         .order('date_achieved', { ascending: false });
@@ -69,7 +70,7 @@ const PRList = () => {
       
       // Use type assertion for the insert operation
       const { error } = await supabase
-        .from('personal_records')
+        .from('personal_records' as any)
         .insert([newRecord as any]);
         
       if (error) throw error;
@@ -110,7 +111,7 @@ const PRList = () => {
       
       // Use type assertion for the update operation
       const { error } = await supabase
-        .from('personal_records')
+        .from('personal_records' as any)
         .update(updates as any)
         .eq('id', id)
         .eq('user_id', user.id);
@@ -146,7 +147,7 @@ const PRList = () => {
       
       // Use type assertion for the delete operation
       const { error } = await supabase
-        .from('personal_records')
+        .from('personal_records' as any)
         .delete()
         .eq('id', id)
         .eq('user_id', user.id);
