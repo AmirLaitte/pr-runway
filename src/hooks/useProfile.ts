@@ -144,7 +144,11 @@ export function useProfile() {
           // Update avatarUrl with the new public URL
           setAvatarUrl(result.url);
           setAvatarPath(result.path);
-          setUploadingAvatar(false);
+          
+          toast({
+            title: 'Avatar uploaded',
+            description: 'Your profile picture has been uploaded successfully.',
+          });
         } catch (error) {
           console.error('Avatar upload error:', error);
           toast({
@@ -152,8 +156,9 @@ export function useProfile() {
             description: (error as Error).message,
             variant: 'destructive',
           });
-          setUploadingAvatar(false);
           // Continue with profile update even if avatar upload fails
+        } finally {
+          setUploadingAvatar(false);
         }
       }
       

@@ -55,6 +55,39 @@ export const deleteFromTable = (table: string) => {
   return fromTable(table).delete();
 };
 
+// Create the avatars bucket if it doesn't exist
+const ensureAvatarsBucketExists = async () => {
+  try {
+    // First check if bucket exists
+    const { data: buckets, error } = await supabase.storage.listBuckets();
+    
+    if (error) {
+      console.error('Error listing buckets:', error);
+      throw error;
+    }
+    
+    // If avatars bucket doesn't exist, create it
+    if (!buckets.find(b => b.name === 'avatars')) {
+      const { error: createError } = await supabase.storage.createBucket('avatars', {
+        public: true,
+        fileSizeLimit: 5242880, // 5MB limit
+      });
+      
+      if (createError) {
+        console.error('Error creating avatars bucket:', createError);
+        throw createError;
+      }
+      
+      console.log('Avatars bucket created successfully');
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error ensuring avatars bucket exists:', error);
+    return false;
+  }
+};
+
 // Supabase storage helper functions
 export const storage = {
   ...supabase.storage,
@@ -69,17 +102,8 @@ export const storage = {
       const fileExt = file.name.split('.').pop();
       const fileName = `${userId}-${Date.now()}.${fileExt}`;
       
-      // Verify bucket exists
-      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
-      
-      if (bucketsError) {
-        console.error('Error listing buckets:', bucketsError);
-        throw new Error('Unable to access storage buckets');
-      }
-      
-      if (!buckets || !buckets.find(b => b.name === 'avatars')) {
-        throw new Error('Avatars bucket not found. Please create it in the Supabase dashboard.');
-      }
+      // Ensure bucket exists before upload
+      await ensureAvatarsBucketExists();
       
       // Upload to avatars bucket
       const { data, error } = await supabase.storage
