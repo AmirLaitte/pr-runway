@@ -53,8 +53,17 @@ export function useProfile() {
         
         // Get and set the public URL for the avatar
         if (profileData.avatar_url) {
-          const publicUrl = storage.getAvatarUrl(profileData.avatar_url);
-          setAvatarUrl(publicUrl);
+          try {
+            const publicUrl = storage.getAvatarUrl(profileData.avatar_url);
+            setAvatarUrl(publicUrl);
+          } catch (error) {
+            console.error('Error getting avatar URL:', error);
+            toast({
+              title: 'Error loading avatar',
+              description: 'Your avatar could not be loaded',
+              variant: 'destructive',
+            });
+          }
         }
       } else {
         // Create a new profile if one doesn't exist
@@ -144,6 +153,7 @@ export function useProfile() {
             variant: 'destructive',
           });
           setUploadingAvatar(false);
+          // Continue with profile update even if avatar upload fails
         }
       }
       

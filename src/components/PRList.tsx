@@ -1,8 +1,37 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { PersonalRecord } from '../types/database';
 import { useToast } from '../hooks/use-toast';
-import { fromTable, insertIntoTable, updateTable, deleteFromTable } from '../integrations/supabase/customClient';
+import { 
+  fromTable, 
+  insertIntoTable, 
+  updateTable, 
+  deleteFromTable 
+} from '../integrations/supabase/customClient';
+import { 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  CardTitle,
+  CardFooter
+} from './ui/card';
+import { 
+  Input 
+} from './ui/input';
+import { 
+  Button 
+} from './ui/button';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from './ui/table';
+import { format } from 'date-fns';
+import { Label } from './ui/label';
 
 const PRList = () => {
   const { user } = useAuth();
@@ -164,56 +193,143 @@ const PRList = () => {
   };
   
   return (
-    <div>
-      {/* UI for displaying and managing personal records */}
-      {loading ? (
-        <p>Loading...</p>
-      ) : (
-        <div>
-          <h2>Your Personal Records</h2>
-          <button onClick={() => setShowAddForm(!showAddForm)}>
-            {showAddForm ? 'Cancel' : 'Add New Record'}
-          </button>
-          {showAddForm && (
-            <form onSubmit={handleAddRecord}>
-              <input
-                type="text"
-                placeholder="Distance"
-                value={distance}
-                onChange={(e) => setDistance(e.target.value)}
-              />
-              <input
-                type="text"
-                placeholder="Time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-              />
-              <input
-                type="text"
-                placeholder="Race Location"
-                value={raceLocation}
-                onChange={(e) => setRaceLocation(e.target.value)}
-              />
-              <input
-                type="date"
-                value={dateAchieved}
-                onChange={(e) => setDateAchieved(e.target.value)}
-              />
-              <button type="submit">Add Record</button>
-            </form>
-          )}
-          <ul>
-            {personalRecords.map((record) => (
-              <li key={record.id}>
-                <span>{record.distance} - {record.time} - {record.race_location} - {record.date_achieved}</span>
-                <button onClick={() => handleUpdateRecord(record.id)}>Edit</button>
-                <button onClick={() => handleDeleteRecord(record.id)}>Delete</button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
+    <Card className="w-full max-w-3xl mx-auto">
+      <CardHeader>
+        <CardTitle>Your Personal Records</CardTitle>
+      </CardHeader>
+      
+      <CardContent>
+        {loading ? (
+          <div className="flex justify-center p-6">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-end mb-4">
+              <Button 
+                onClick={() => setShowAddForm(!showAddForm)}
+                variant={showAddForm ? "outline" : "default"}
+              >
+                {showAddForm ? 'Cancel' : 'Add New Record'}
+              </Button>
+            </div>
+            
+            {showAddForm && (
+              <Card className="mb-6 border border-muted">
+                <CardHeader>
+                  <CardTitle className="text-lg">Add New Personal Record</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleAddRecord} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="distance">Distance</Label>
+                      <Input
+                        id="distance"
+                        placeholder="e.g. 5K, 10K, Marathon"
+                        value={distance}
+                        onChange={(e) => setDistance(e.target.value)}
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="time">Time</Label>
+                      <Input
+                        id="time"
+                        placeholder="e.g. 20:45, 3:45:30"
+                        value={time}
+                        onChange={(e) => setTime(e.target.value)}
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="race_location">Race Location</Label>
+                      <Input
+                        id="race_location"
+                        placeholder="e.g. Boston, MA"
+                        value={raceLocation}
+                        onChange={(e) => setRaceLocation(e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="date_achieved">Date Achieved</Label>
+                      <Input
+                        id="date_achieved"
+                        type="date"
+                        value={dateAchieved}
+                        onChange={(e) => setDateAchieved(e.target.value)}
+                        required
+                      />
+                    </div>
+                    
+                    <div className="flex justify-end pt-2">
+                      <Button type="submit">Add Record</Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+            
+            {personalRecords.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Distance</TableHead>
+                    <TableHead>Time</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {personalRecords.map((record) => (
+                    <TableRow key={record.id}>
+                      <TableCell className="font-medium">{record.distance}</TableCell>
+                      <TableCell>{record.time}</TableCell>
+                      <TableCell>{record.race_location}</TableCell>
+                      <TableCell>
+                        {record.date_achieved ? 
+                          format(new Date(record.date_achieved), 'MMM d, yyyy') : 
+                          'N/A'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              setEditingRecord(record.id);
+                              setTime(record.time);
+                              setRaceLocation(record.race_location || '');
+                              setDateAchieved(record.date_achieved || '');
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            onClick={() => handleDeleteRecord(record.id)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="text-center p-6 border border-dashed rounded-lg">
+                <p className="text-muted-foreground">No personal records yet. Add your first one!</p>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

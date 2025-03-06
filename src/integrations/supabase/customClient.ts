@@ -70,9 +70,15 @@ export const storage = {
       const fileName = `${userId}-${Date.now()}.${fileExt}`;
       
       // Verify bucket exists
-      const { data: buckets } = await supabase.storage.listBuckets();
+      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+      
+      if (bucketsError) {
+        console.error('Error listing buckets:', bucketsError);
+        throw new Error('Unable to access storage buckets');
+      }
+      
       if (!buckets || !buckets.find(b => b.name === 'avatars')) {
-        throw new Error('Avatars bucket not found');
+        throw new Error('Avatars bucket not found. Please create it in the Supabase dashboard.');
       }
       
       // Upload to avatars bucket

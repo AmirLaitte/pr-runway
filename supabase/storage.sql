@@ -1,7 +1,10 @@
 
--- This is just for reference. You'll need to create this bucket
--- in the Supabase dashboard or run a separate command
--- CREATE STORAGE BUCKET avatars
+-- Create the avatars bucket if it doesn't exist
+INSERT INTO storage.buckets (id, name, public)
+SELECT 'avatars', 'avatars', true
+WHERE NOT EXISTS (
+    SELECT 1 FROM storage.buckets WHERE id = 'avatars'
+);
 
 -- Set up public access policies for the avatars bucket
 CREATE POLICY "Avatar images are publicly accessible"
